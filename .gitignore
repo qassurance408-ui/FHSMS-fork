@@ -1,0 +1,20 @@
+# Secrets - never commit
+.env
+**/.env
+!.env.example
+
+# Build output
+**/bin/
+**/obj/
+frontend/node_modules/
+frontend/dist/
+release/
+backups/
+
+# Editor / OS
+.vs/
+.vscode/
+.idea/
+*.user
+.DS_Store
+Thumbs.db

@@ -1,0 +1,24 @@
+# /etc/systemd/system/fhsms-api.service
+[Unit]
+Description=FHSMS API
+After=network.target postgresql.service
+
+[Service]
+WorkingDirectory=/opt/fhsms/api
+# Self-contained build: run the native launcher.
+ExecStart=/opt/fhsms/api/FHSMS.API
+# Framework-dependent build instead? Use:  ExecStart=/usr/bin/dotnet /opt/fhsms/api/FHSMS.API.dll
+EnvironmentFile=/etc/fhsms/api.env
+Restart=always
+RestartSec=5
+User=fhsms
+Group=fhsms
+KillSignal=SIGINT
+SyslogIdentifier=fhsms-api
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

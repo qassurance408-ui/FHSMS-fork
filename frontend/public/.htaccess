@@ -1,0 +1,20 @@
+# Apache / cPanel shared hosting: send every non-file URL to the React app so
+# refreshing /orders/123 doesn't 404. Requires mod_rewrite (enabled on cPanel).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Never cache the app shell, service worker or runtime config; cache hashed assets for a year.
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|sw\.js|registerSW\.js|config\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "\.(js|css|woff2?|png|jpg|jpeg|svg|webp)$">
+    Header setifempty Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>

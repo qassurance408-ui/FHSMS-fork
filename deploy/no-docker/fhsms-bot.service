@@ -1,0 +1,21 @@
+# /etc/systemd/system/fhsms-bot.service   (optional - only if you use the Telegram bot)
+[Unit]
+Description=FHSMS Telegram bot
+After=network.target fhsms-api.service
+Wants=fhsms-api.service
+
+[Service]
+WorkingDirectory=/opt/fhsms/bot
+ExecStart=/opt/fhsms/bot/FHSMS.TelegramBot
+EnvironmentFile=/etc/fhsms/bot.env
+Restart=always
+RestartSec=10
+User=fhsms
+Group=fhsms
+SyslogIdentifier=fhsms-bot
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
