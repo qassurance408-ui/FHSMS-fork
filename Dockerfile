@@ -1,38 +1,37 @@
 # syntax=docker/dockerfile:1
 
-# --- Build stage -------------------------------------------------------
-# Builds and publishes FHSMS.API and everything it depends on (Domain,
-# Application, Infrastructure). Only the .csproj files are copied before
-# `dotnet restore` so Docker's layer cache can skip the restore step
-# entirely on rebuilds where only .cs files changed - the biggest lever for
-# fast iterative builds here.
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+# Web container: serves the built React app AND reverse-proxies /api to the
+# API container, with automatic HTTPS when you give it a domain name. One
+# container, works on any Docker host (Alet Cloud VPS, any VPS, a home
+# server, ...). Build context is the repo root - see docker-compose.prod.yml.
 
-COPY src/FHSMS.Domain/FHSMS.Domain.csproj src/FHSMS.Domain/
-COPY src/FHSMS.Application/FHSMS.Application.csproj src/FHSMS.Application/
-COPY src/FHSMS.Infrastructure/FHSMS.Infrastructure.csproj src/FHSMS.Infrastructure/
-COPY src/FHSMS.API/FHSMS.API.csproj src/FHSMS.API/
-
-RUN dotnet restore src/FHSMS.API/FHSMS.API.csproj
-
-COPY src/ src/
-RUN dotnet publish src/FHSMS.API/FHSMS.API.csproj -c Release -o /app/publish --no-restore
-
-# --- Runtime stage -------------------------------------------------------
-# The much smaller ASP.NET runtime image (no SDK/compiler) - this is the
-# image that actually runs on your server (any Docker host).
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM node:20-alpine AS build
 WORKDIR /app
 
-# Runs as the image's built-in non-root user rather than root.
-USER app
+# No package-lock.json is committed yet, so `npm install` is used. Commit a
+# lockfile and switch to `npm ci` for reproducible builds.
+COPY frontend/package.json ./
+RUN npm install
 
-COPY --from=build /app/publish .
+COPY frontend/ ./
 
-# Informational only. The official .NET 8 image listens on 8080 by default;
-# hosts that inject a PORT env var (Render, Railway, ...) are also honoured -
-# Program.cs reads PORT and binds Kestrel to it when it is set.
-EXPOSE 8080
+# Leave empty for the normal same-domain setup (the app then calls "/api").
+# Only set this if the API lives on a different domain:
+#   docker build --build-arg VITE_API_BASE_URL=https://api.example.com/api ...
+# You can also change it later, without rebuilding, by editing config.js.
+ARG VITE_API_BASE_URL=""
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+RUN npm run build
 
-ENTRYPOINT ["dotnet", "FHSMS.API.dll"]
+FROM caddy:2-alpine AS runtime
+COPY --from=build /app/dist /srv
+COPY frontend/Caddyfile /etc/caddy/Caddyfile
+
+# SITE_ADDRESS  ":80" (default) = plain HTTP on any hostname/IP.
+#               "app.example.com" = automatic HTTPS (needs DNS pointing here
+#               and ports 80 + 443 open).
+# API_UPSTREAM  where /api is forwarded - the compose service name by default.
+ENV SITE_ADDRESS=":80" \
+    API_UPSTREAM="api:8080"
+
+EXPOSE 80 443
